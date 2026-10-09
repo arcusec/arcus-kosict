@@ -1,0 +1,13 @@
+const form=document.querySelector('#signup'),button=document.querySelector('#submit'),status=document.querySelector('#status');
+const endpoint=window.ARCUS_SHEET_ENDPOINT;
+let token='',widgetId=null,busy=false,submissionId=null;
+function sync(){button.disabled=busy||!endpoint||!token;}
+function resetVerification(){token='';sync();if(widgetId!==null&&window.turnstile)turnstile.reset(widgetId);}
+window.onTurnstileLoaded=()=>{widgetId=turnstile.render('#captcha',{sitekey:'0x4AAAAAAFSHUapUhfPb7cpE',action:'kosict_signup',theme:'dark',size:'flexible',callback:t=>{token=t;status.textContent='';sync();},'expired-callback':()=>{token='';sync();status.textContent='Please complete the verification again.';},'error-callback':()=>{token='';sync();status.textContent='Verification is unavailable. Refresh the page or speak with our team.';}});};
+sync();status.textContent='Complete the verification to continue.';
+form.addEventListener('input',()=>{submissionId=null;});
+form.addEventListener('submit',async e=>{e.preventDefault();if(busy||!endpoint||!token||!form.reportValidity())return;busy=true;sync();button.textContent='Saving your details…';status.textContent='';const fields=new FormData(form),data=Object.fromEntries(fields);data.followUp=fields.has('followUp');data.updates=data.followUp;data.consentVersion='KOSICT2026-v2-single-turnstile';data.turnstileToken=token;submissionId ||= crypto.randomUUID();data.submissionId=submissionId;let success=false;
+try{const response=await fetch(endpoint,{method:'POST',headers:{'Content-Type':'text/plain;charset=utf-8'},body:JSON.stringify(data)});const result=await response.json();if(!result.ok){const messages={verification:'Please complete the verification again.',rate_limit:'We’re receiving many signups. Please try again in a minute.',duplicate:'A signup for this email was received recently. Please wait 10 minutes before submitting again.',invalid:'Please check your details and try again.'};status.textContent=messages[result.error]||'We couldn’t save your details. Please try again or speak with our team.';return;}success=true;form.reset();submissionId=null;document.querySelector('#form-wrap').hidden=true;document.querySelector('#success').hidden=false;}
+catch{status.textContent='We couldn’t confirm your signup. Please try again or speak with our team.';}
+finally{busy=false;button.textContent='Stay connected';if(!success)resetVerification();sync();}});
+document.querySelector('#another').addEventListener('click',()=>{document.querySelector('#success').hidden=true;document.querySelector('#form-wrap').hidden=false;resetVerification();status.textContent='Complete the verification to continue.';form.elements.firstName.focus();});
